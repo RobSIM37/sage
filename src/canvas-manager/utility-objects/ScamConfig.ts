@@ -1,5 +1,5 @@
-import { ScamRunOptions } from "../../consts/scam-consts/ScamRunOptions";
-import { ScamCanvasData } from "./ScamCanvasData";
+import { ScamRunOptions } from "../../consts/scam-consts/ScamRunOptions.ts";
+import { ScamCanvasData } from "./ScamCanvasData.ts";
 
 export class ScamConfig {
     private canvasElements: Record<string, ScamCanvasData> = {};

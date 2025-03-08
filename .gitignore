@@ -1,6 +1,10 @@
 # Ignore node_modules (never commit dependencies)
 node_modules/
 
+# Ignore the demo/testing folder and index.ts
+demo/
+src/index.ts
+
 # Ignore compiled TypeScript output
 dist/
 

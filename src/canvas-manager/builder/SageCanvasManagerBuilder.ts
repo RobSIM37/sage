@@ -1,9 +1,9 @@
-import { ScamCanvasDescription } from "../../consts/scam-consts/ScamCanvasDescription";
-import { ScamCanvasData } from "../utility-objects/ScamCanvasData";
-import { ScamRunOptions } from "../../consts/scam-consts/ScamRunOptions";
-import { DEFAULT_CANVAS_STYLES } from "../../consts/scam-consts/DefaultCanvasStyles";
-import { ScamConfig } from "../utility-objects/ScamConfig";
-import { SageCanvasManager } from "../SageCanvasManager";
+import { ScamCanvasDescription } from "../../consts/scam-consts/ScamCanvasDescription.ts";
+import { ScamCanvasData } from "../utility-objects/ScamCanvasData.ts";
+import { ScamRunOptions } from "../../consts/scam-consts/ScamRunOptions.ts";
+import { DEFAULT_CANVAS_STYLES } from "../../consts/scam-consts/DefaultCanvasStyles.ts";
+import { ScamConfig } from "../utility-objects/ScamConfig.ts";
+import { SageCanvasManager } from "../SageCanvasManager.ts";
 
 export class SageCanvasManagerBuilder {
     #canvasElements: Record<string, ScamCanvasData> = {};
@@ -23,6 +23,12 @@ export class SageCanvasManagerBuilder {
             // Ensure UI canvas allows interaction
             this.#canvasElements[ScamCanvasDescription.UI].canvas.style.pointerEvents = "auto";
         }
+    }
+
+    /** Sets run mode for the SCaM */
+    setRunMode(runMode: ScamRunOptions): this {
+        this.#runMode = runMode;
+        return this;
     }
 
     /** Sets a new parent element for all canvases */
