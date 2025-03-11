@@ -1,28 +1,40 @@
-import { ScamCanvasDescription } from "../../consts/scam-consts/ScamCanvasDescription.ts";
 import { ScamCanvasData } from "../utility-objects/ScamCanvasData.ts";
 import { ScamRunOptions } from "../../consts/scam-consts/ScamRunOptions.ts";
-import { DEFAULT_CANVAS_STYLES } from "../../consts/scam-consts/DefaultCanvasStyles.ts";
 import { ScamConfig } from "../utility-objects/ScamConfig.ts";
 import { SageCanvasManager } from "../SageCanvasManager.ts";
+import { CanvasStyleConfig } from "../../consts/scam-consts/DefaultCanvasStyleTypes.ts";
+import { ScamBuilderInit } from "../../consts/scam-consts/ScamBuilderInitType.ts";
+import { ScamCanvasDescriptions } from "../../consts/scam-consts/ScamCanvasDescriptions.ts";
 
 export class SageCanvasManagerBuilder {
     #canvasElements: Record<string, ScamCanvasData> = {};
     #parentElement: HTMLElement = document.body;
     #runMode: ScamRunOptions = ScamRunOptions.STRIKE_WHEN_THE_TIME_IS_RIGHT;
+    #currentCanvasStyles: Partial<CSSStyleDeclaration> = {};
 
-    constructor(preExistingCanvas: HTMLCanvasElement | null = null) {
-        if (preExistingCanvas) {
-            // Single-canvas mode: Only stage is created
-            this.addCanvas(ScamCanvasDescription.STAGE, 0, preExistingCanvas);
-        } else {
-            // Multi-canvas mode: Background, Stage, and UI layers
-            this.addCanvas(ScamCanvasDescription.BACKGROUND, -1)
-                .addCanvas(ScamCanvasDescription.STAGE, 0)
-                .addCanvas(ScamCanvasDescription.UI, 1);
-            
-            // Ensure UI canvas allows interaction
-            this.#canvasElements[ScamCanvasDescription.UI].canvas.style.pointerEvents = "auto";
+    constructor(init: ScamBuilderInit | null = null) {
+        if(!init || Object.values(init).every(value => value === null)) {
+            this.addCanvasToTop(ScamCanvasDescriptions.BACKGROUND, this.#prepareCanvas());
+            this.addCanvasToTop(ScamCanvasDescriptions.STAGE, this.#prepareCanvas());
+            this.addCanvasToTop(ScamCanvasDescriptions.UI, this.#prepareCanvas());
+            return
         }
+
+        init.canvasDataArr?.forEach(d => {
+            d.description = this.#getUniqueDescription(d.description);
+            d.layerDepth = this.#getUniqueLayerDepth(d.layerDepth);
+            d.canvas = this.#getUniqueCanvas(d.canvas);
+
+            this.#canvasElements[d.description] = d;
+        })
+
+        init.canvases?.forEach(c => {
+            this.addCanvasToTop(this.#getUniqueDescription(), this.#getUniqueCanvas(c));
+        })
+
+        init.descriptions?.forEach(d => {
+            this.addCanvasToTop(this.#getUniqueDescription(d), this.#prepareCanvas());
+        })
     }
 
     /** Sets run mode for the SCaM */
@@ -36,10 +48,22 @@ export class SageCanvasManagerBuilder {
         this.#parentElement = parent;
         return this;
     }
+
+    setDefaultStyle<T extends keyof CanvasStyleConfig>(
+        property: T,
+        value: CanvasStyleConfig[T]
+    ): this {
+        this.#currentCanvasStyles[property] = value;
+        Object.values(this.#canvasElements)
+            .filter(d => d.systemCreated)
+            .forEach(d => d.canvas.style[property] = value)
+        return this;
+    }
+
     /** Adds a canvas with a specified description and layer depth */
     addCanvas(description: string, layerDepth: number, preExistingCanvas: HTMLCanvasElement | null = null): this {
         const canvas = this.#prepareCanvas(preExistingCanvas);
-        this.#canvasElements[description] = new ScamCanvasData(canvas, layerDepth);
+        this.#canvasElements[description] = new ScamCanvasData(canvas, layerDepth, description, preExistingCanvas != undefined);
         return this;
     }
 
@@ -53,6 +77,29 @@ export class SageCanvasManagerBuilder {
     addCanvasToBottom(description: string, preExistingCanvas: HTMLCanvasElement | null = null): this {
         const lowestLayer = this.#getLowestLayer() - 1;
         return this.addCanvas(description, lowestLayer, preExistingCanvas);
+    }
+
+    useCanvasStyleAsTemplate(canvas: HTMLCanvasElement): this {
+        // Extract styles into a plain object
+        const newStyles = {} as Record<string, string>; // Index signature fixes TS error
+    
+        for (const prop of Object.keys(canvas.style)) {
+            const value = canvas.style[prop as keyof CSSStyleDeclaration];
+    
+            if (typeof value === "string") {
+                newStyles[prop] = value; // No more TypeScript complaints!
+            }
+        }
+    
+        // Store as the new default
+        this.#currentCanvasStyles = newStyles as Partial<CanvasStyleConfig>;
+    
+        // Apply styles to all system-created canvases
+        Object.values(this.#canvasElements)
+            .filter(d => d.systemCreated)
+            .forEach(d => Object.assign(d.canvas.style, newStyles));
+    
+        return this;
     }
 
     /** FINAL STEP: Builds the ScamConfig for SCaM proper */
@@ -76,7 +123,7 @@ export class SageCanvasManagerBuilder {
 
     /** Applies default styles so all canvases are positioned and sized correctly */
     #applyDefaultCanvasStyles(canvas: HTMLCanvasElement): void {
-        Object.assign(canvas.style, DEFAULT_CANVAS_STYLES);
+        Object.assign(canvas.style, this.#currentCanvasStyles);
     }
 
     /** Finds the highest layer depth */
@@ -87,5 +134,32 @@ export class SageCanvasManagerBuilder {
     /** Finds the lowest layer depth */
     #getLowestLayer(): number {
         return Math.min(...Object.values(this.#canvasElements).map(el => el.layerDepth), 0);
+    }
+
+    #getUniqueDescription(description: string | null = null):string {
+        if (!description) description = "canvas";
+    
+        const baseDescription: string = description; // Keep the original name intact
+        let count: number = 1;
+
+        const keys: string[] = Object.keys(this.#canvasElements);
+
+        while (keys.includes(description)) {
+            description = `${baseDescription}${count}`;
+            count++;
+        }
+
+        return description;
+    }
+
+    #getUniqueLayerDepth(layerDepth: number): number {
+        while (Object.values(this.#canvasElements).map(c => c.layerDepth).includes(layerDepth)){
+            layerDepth++
+        }
+        return layerDepth;
+    }
+
+    #getUniqueCanvas(canvas: HTMLCanvasElement): HTMLCanvasElement {
+        return Object.values(this.#canvasElements).map(c => c.canvas).includes(canvas) ? document.createElement("canvas") : canvas;
     }
 }
